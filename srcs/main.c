@@ -10,23 +10,25 @@ void usage(const char *progname) {
 }
 
 int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *stats) {
-	struct icmp packet;
+	char packet[PACKET_SIZE];
 	char recvbuf[IP_MAXPACKET];
 	int seq = 0;
 	struct timeval start, end;
 
 	while (1) {
 
-		memset(&packet, 0, sizeof(packet));
-    	packet.icmp_type = ICMP_ECHO;
-    	packet.icmp_code = 0;
-    	packet.icmp_id = getpid() & 0xFFFF;
-    	packet.icmp_seq = seq++;
-    	packet.icmp_cksum = checksum(&packet, sizeof(packet));
+		memset(packet, 0, PACKET_SIZE);
+		((struct icmp *)packet)->icmp_type = ICMP_ECHO;
+		((struct icmp *)packet)->icmp_code = 0;
+		((struct icmp *)packet)->icmp_id = getpid() & 0xFFFF;
+		((struct icmp *)packet)->icmp_seq = seq++;
+		for (size_t i = sizeof(struct icmp); i < PACKET_SIZE; i++)
+			packet[i] = '0' + (i % 10);
+		((struct icmp *)packet)->icmp_cksum = checksum(packet, PACKET_SIZE);
 
 		stats->sent++;
 		gettimeofday(&start, NULL);
-		if (sendto(*sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&addr, sizeof(addr)) <= 0) {
+		if (sendto(*sockfd, packet, PACKET_SIZE, 0, (struct sockaddr *)&addr, sizeof(addr)) <= 0) {
         	perror("sendto");
         	close(*sockfd);
         	exit(EXIT_FAILURE);
