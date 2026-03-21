@@ -21,6 +21,7 @@
 
 typedef struct s_flags {
 	int     verbose;
+	int     count;
 }				t_flags;
 
 typedef struct s_stats {

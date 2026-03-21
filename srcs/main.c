@@ -2,10 +2,11 @@
 
 // Help function
 void usage(const char *progname) {
-    printf("Usage: %s [-v] [-?] <destination>\n", progname);
+    printf("Usage: %s [-v] [-?] [-c count] <destination>\n", progname);
     printf("Options:\n");
-    printf("  -v   Verbose output\n");
-    printf("  -?   Show this help message\n");
+    printf("  -v         Verbose output\n");
+    printf("  -c count   Stop after sending count packets\n");
+    printf("  -?         Show this help message\n");
     exit(EXIT_SUCCESS);
 }
 
@@ -99,6 +100,10 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 					icmp_reply->icmp_seq, ip_hdr->ip_ttl, rtt);
 		}
 		sleep(1);
+	    
+	    // KILL IT
+		if (flags->count > 0 && seq >= flags->count)
+			sigint_handler(0);
 	}
 
 	return 0;
@@ -113,10 +118,13 @@ int main(int argc, char *argv[]) {
     int opt;
 
 	memset(&flags, 0, sizeof(flags));
-    while ((opt = getopt(argc, argv, "v?")) != -1) {
+    while ((opt = getopt(argc, argv, "v?c:")) != -1) {
         switch (opt) {
             case 'v':
                 flags.verbose = 1;
+                break;
+            case 'c':
+                flags.count = atoi(optarg);
                 break;
             case '?':
                 usage(argv[0]);

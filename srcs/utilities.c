@@ -14,6 +14,7 @@ void sigint_handler(int sig) {
 	printf("\n--- %s ping statistics ---\n", s_stats->host);
 	printf("%d packets transmitted, %d received, %.0f%% packet loss\n",
 		s_stats->sent, s_stats->received, loss);
+
 	if (s_stats->received > 0) {
 		double avg = s_stats->rtt_sum / s_stats->received;
 		double stddev = sqrt(s_stats->rtt_sum_sq / s_stats->received - avg * avg);
