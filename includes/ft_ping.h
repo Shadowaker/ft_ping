@@ -13,6 +13,8 @@
 # include <arpa/inet.h>
 # include <netdb.h>
 # include <errno.h>
+# include <signal.h>
+# include <math.h>
 
 # define PACKET_SIZE 64
 # define TIMEOUT_SEC 2
@@ -21,7 +23,18 @@ typedef struct s_flags {
 	int     verbose;
 }				t_flags;
 
+typedef struct s_stats {
+	int         sent;
+	int         received;
+	double      rtt_min;
+	double      rtt_max;
+	double      rtt_sum;
+	double      rtt_sum_sq;
+	const char  *host;
+}				t_stats;
 
-unsigned short checksum(void *b, int len);
+unsigned short  checksum(void *b, int len);
+void            stats_init(t_stats *stats);
+void            sigint_handler(int sig);
 
 #endif //FT_PING_H

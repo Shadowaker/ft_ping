@@ -9,7 +9,7 @@ void usage(const char *progname) {
     exit(EXIT_SUCCESS);
 }
 
-int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags) {
+int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *stats) {
 	struct icmp packet;
 	char recvbuf[IP_MAXPACKET];
 	int seq = 0;
@@ -24,6 +24,7 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags) {
     	packet.icmp_seq = seq++;
     	packet.icmp_cksum = checksum(&packet, sizeof(packet));
 
+		stats->sent++;
 		gettimeofday(&start, NULL);
 		if (sendto(*sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&addr, sizeof(addr)) <= 0) {
         	perror("sendto");
@@ -76,6 +77,11 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags) {
 			got_reply = 1;
 			double rtt = (end.tv_sec - start.tv_sec) * 1000.0
 						+ (end.tv_usec - start.tv_usec) / 1000.0;
+			stats->received++;
+			if (stats->rtt_min < 0 || rtt < stats->rtt_min) stats->rtt_min = rtt;
+			if (rtt > stats->rtt_max) stats->rtt_max = rtt;
+			stats->rtt_sum += rtt;
+			stats->rtt_sum_sq += rtt * rtt;
 			ssize_t icmp_bytes = recv_bytes - ip_hdr_len;
 		    
 			if (flags->verbose)
@@ -97,8 +103,8 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags) {
 int main(int argc, char *argv[]) {
     int sockfd;
     struct sockaddr_in addr;
-	
 	t_flags flags;
+	t_stats stats = {0, 0, -1.0, 0.0, 0.0, 0.0, NULL};
 
     int opt;
 
@@ -140,8 +146,11 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+	stats.host = dest;
+	stats_init(&stats);
+	signal(SIGINT, sigint_handler);
 	printf("PING %s (%s): 56 data bytes\n", dest, inet_ntoa(addr.sin_addr));
-	send_loop(&sockfd, addr, &flags);
+	send_loop(&sockfd, addr, &flags, &stats);
 
     close(sockfd);
     return 0;

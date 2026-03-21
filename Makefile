@@ -1,6 +1,7 @@
 NAME	= ft_ping
 CC		= gcc
 CFLAGS = -g -Wall -Wextra -Werror
+LDFLAGS = -lm
 AUTHOR	= dridolfo
 DATE	= 28/04/2025
 
@@ -187,7 +188,7 @@ endif
 -include $(DEPS) $(DEPS_MAIN)
 $(NAME):	${OBJS} ${OBJ_MAIN}
 #			@$(call display_progress_bar)
-			@$(call run_and_test,$(CC) $(CFLAGS) $(DFLAGS) -I$(INCLUDE_PATH) -o $@ ${OBJS} ${OBJ_MAIN})
+			@$(call run_and_test,$(CC) $(CFLAGS) $(DFLAGS) -I$(INCLUDE_PATH) -o $@ ${OBJS} ${OBJ_MAIN} $(LDFLAGS))
 
 setup:
 	@$(call save_files_changed)
