@@ -78,8 +78,10 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 			double rtt = (end.tv_sec - start.tv_sec) * 1000.0
 						+ (end.tv_usec - start.tv_usec) / 1000.0;
 			stats->received++;
+
 			if (stats->rtt_min < 0 || rtt < stats->rtt_min) stats->rtt_min = rtt;
 			if (rtt > stats->rtt_max) stats->rtt_max = rtt;
+
 			stats->rtt_sum += rtt;
 			stats->rtt_sum_sq += rtt * rtt;
 			ssize_t icmp_bytes = recv_bytes - ip_hdr_len;
