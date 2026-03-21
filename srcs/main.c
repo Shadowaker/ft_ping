@@ -9,10 +9,11 @@ void usage(const char *progname) {
     exit(EXIT_SUCCESS);
 }
 
-int send_loop(int *sockfd, struct sockaddr_in addr, const char *dest, t_flags *flags) {
+int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags) {
 	struct icmp packet;
 	char recvbuf[IP_MAXPACKET];
 	int seq = 0;
+	struct timeval start, end;
 
 	while (1) {
 
@@ -23,15 +24,13 @@ int send_loop(int *sockfd, struct sockaddr_in addr, const char *dest, t_flags *f
     	packet.icmp_seq = seq++;
     	packet.icmp_cksum = checksum(&packet, sizeof(packet));
 
+		gettimeofday(&start, NULL);
 		if (sendto(*sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&addr, sizeof(addr)) <= 0) {
         	perror("sendto");
         	close(*sockfd);
         	exit(EXIT_FAILURE);
     	}
-
-    	if (flags->verbose)
-        	printf("Sent ICMP Echo Request to %s\n", dest);
-
+        
 	    // Set timeout
 	    struct timeval tv;
 	    tv.tv_sec = TIMEOUT_SEC;
@@ -41,32 +40,54 @@ int send_loop(int *sockfd, struct sockaddr_in addr, const char *dest, t_flags *f
 	    FD_ZERO(&readfds);
 	    FD_SET(*sockfd, &readfds);
 
-	    int ret = select(*sockfd + 1, &readfds, NULL, NULL, &tv);
-	    if (ret == -1) {
-	        perror("select");
-	        close(*sockfd);
-	        exit(EXIT_FAILURE);
-	    }
-	    else if (ret == 0) {
-	        printf("Request timeout for icmp_seq %d\n", seq - 1);
-	        sleep(1);
-	        continue;
-	    }
-		socklen_t addrlen = sizeof(addr);
-		ssize_t recv_bytes = recvfrom(*sockfd, recvbuf, sizeof(recvbuf), 0, (struct sockaddr *)&addr, &addrlen);
-		if (recv_bytes <= 0) {
-			perror("recvfrom");
-			close(*sockfd);
-			exit(EXIT_FAILURE);
+		unsigned int got_reply = 0; // considering moving to bool type
+		while (!got_reply) {
+			int ret = select(*sockfd + 1, &readfds, NULL, NULL, &tv);
+			
+		    if (ret == -1) {
+				perror("select");
+				close(*sockfd);
+				exit(EXIT_FAILURE);
+			}
+		    
+			if (ret == 0) {
+				printf("Request timeout for icmp_seq %d\n", seq - 1);
+				break;
+			}
+		    
+			socklen_t addrlen = sizeof(addr);
+			ssize_t recv_bytes = recvfrom(*sockfd, recvbuf, sizeof(recvbuf), 0, (struct sockaddr *)&addr, &addrlen);
+			gettimeofday(&end, NULL);
+		    
+			if (recv_bytes <= 0) {
+				perror("recvfrom");
+				close(*sockfd);
+				exit(EXIT_FAILURE);
+			}
+		    
+			struct ip *ip_hdr = (struct ip *)recvbuf;
+			int ip_hdr_len = ip_hdr->ip_hl * 4;
+			struct icmp *icmp_reply = (struct icmp *)(recvbuf + ip_hdr_len);
+			
+		    if (icmp_reply->icmp_type != ICMP_ECHOREPLY
+				|| icmp_reply->icmp_id != (getpid() & 0xFFFF))
+				continue;
+		    
+			got_reply = 1;
+			double rtt = (end.tv_sec - start.tv_sec) * 1000.0
+						+ (end.tv_usec - start.tv_usec) / 1000.0;
+			ssize_t icmp_bytes = recv_bytes - ip_hdr_len;
+		    
+			if (flags->verbose)
+				printf("%zd bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms (type=%d code=%d)\n",
+					icmp_bytes, inet_ntoa(addr.sin_addr),
+					icmp_reply->icmp_seq, ip_hdr->ip_ttl, rtt,
+					icmp_reply->icmp_type, icmp_reply->icmp_code);
+			else
+				printf("%zd bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n",
+					icmp_bytes, inet_ntoa(addr.sin_addr),
+					icmp_reply->icmp_seq, ip_hdr->ip_ttl, rtt);
 		}
-		struct ip *ip_hdr = (struct ip *)recvbuf;
-		int ip_hdr_len = ip_hdr->ip_hl * 4;
-		struct icmp *icmp_reply = (struct icmp *)(recvbuf + ip_hdr_len);
-		if (flags->verbose)
-			printf("Received ICMP type=%d code=%d from %s\n",
-				icmp_reply->icmp_type, icmp_reply->icmp_code, inet_ntoa(addr.sin_addr));
-		else
-			printf("Reply from %s: icmp_seq=%d\n", inet_ntoa(addr.sin_addr), icmp_reply->icmp_seq);
 		sleep(1);
 	}
 
@@ -119,7 +140,8 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-	send_loop(&sockfd, addr, dest, &flags);
+	printf("PING %s (%s): 56 data bytes\n", dest, inet_ntoa(addr.sin_addr));
+	send_loop(&sockfd, addr, &flags);
 
     close(sockfd);
     return 0;
