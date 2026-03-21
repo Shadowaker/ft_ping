@@ -8,6 +8,7 @@
 # include <sys/types.h>
 # include <sys/socket.h>
 # include <sys/time.h>
+# include <netinet/ip.h>
 # include <netinet/ip_icmp.h> // https://manpages.opensuse.org/Leap-15.6/man-pages-posix/netinet_in.h.0p.en.html
 # include <arpa/inet.h>
 # include <netdb.h>
