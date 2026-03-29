@@ -2,13 +2,14 @@
 
 // Help function
 void usage(const char *progname) {
-	printf("Usage: %s [-v] [-?] [-c count] [-W timeout] <destination>\n", progname);
+	printf("Usage: %s [-v] [-?] [-c count] [-W timeout] [-w deadline] <destination>\n", progname);
 	printf("Options:\n");
-	printf("  -v           Verbose output\n");
-	printf("  -c count     Stop after sending count packets\n");
-	printf("  -D           Print timestamp (unix time + microseconds as in gettimeofday) before each line.\n");
-	printf("  -W timeout   Set time to wait for a response, in seconds (default: %d).\n", TIMEOUT_SEC);
-	printf("  -?           Show this help message\n");
+	printf("  -v             Verbose output\n");
+	printf("  -c count       Stop after sending count packets\n");
+	printf("  -D             Print timestamp (unix time + microseconds as in gettimeofday) before each line.\n");
+	printf("  -W timeout     Set time to wait for a response, in seconds (default: %d).\n", TIMEOUT_SEC);
+	printf("  -w deadline    Exit after deadline seconds regardless of packets sent.\n");
+	printf("  -?             Show this help message\n");
 	exit(EXIT_SUCCESS);
 }
 
@@ -122,7 +123,7 @@ int main(int argc, char *argv[]) {
 	int opt;
 
 	memset(&flags, 0, sizeof(flags));
-	while ((opt = getopt(argc, argv, "v?c:DW:")) != -1) {
+	while ((opt = getopt(argc, argv, "v?c:DW:w:")) != -1) {
 		switch (opt) {
 			case 'v':
 				flags.verbose = 1;
@@ -135,6 +136,9 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'W':
 				flags.wait = atoi(optarg);
+				break;
+			case 'w':
+				flags.deadline = atoi(optarg);
 				break;
 			case '?':
 				usage(argv[0]);
@@ -171,6 +175,9 @@ int main(int argc, char *argv[]) {
 	stats.host = dest;
 	stats_init(&stats);
 	signal(SIGINT, sigint_handler);
+	signal(SIGALRM, sigint_handler);
+	if (flags.deadline > 0)
+		alarm(flags.deadline);
 	printf("PING %s (%s): 56 data bytes\n", dest, inet_ntoa(addr.sin_addr));
 	gettimeofday(&stats.start, NULL);
 	send_loop(&sockfd, addr, &flags, &stats);
