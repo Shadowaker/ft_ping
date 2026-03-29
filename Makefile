@@ -127,35 +127,6 @@ define draw_bar
 	echo $$FILE_DONE/$$FILE_TOTAL > .files_changed;
 endef
 
-#define display_progress_bar
-#
-#		line=`bash -c 'oldstty=$$(stty -g); stty raw -echo min 0; tput u7 > /dev/tty; IFS=";" read -r -d R -a pos; stty $$oldstty; row=$$(($${pos[0]:2} - 1)); echo $$row'`; \
-#		max_line=`tput lines`; \
-#		((max_line=$$max_line-2));\
-#		new_line=0; \
-#		tput sc; \
-#		i=0; \
-#		while [ $$i -lt 60 ]; do \
-#			printf " "; \
-#			((i=$$i+1)); \
-#		done; \
-#		tput rc; \
-#		if [ $$line -gt $$max_line ]; then \
-#			new_line=1; \
-#			echo ; \
-#		else \
-#			((line=$$line+1));\
-#		fi; \
-#		tput sc; \
-#		tput cup $$line; \
-#		$(draw_bar) \
-#		if [ $$new_line -eq 1 ]; then \
-#			((line=$$line-1));\
-#			tput cup $$line; \
-#		else \
-#			tput rc; \
-#		fi;
-#endef
 
 ################################################################################
 #                                 Makefile rules                             #

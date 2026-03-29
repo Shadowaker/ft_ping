@@ -18,10 +18,14 @@
 
 # define PACKET_SIZE 64
 # define TIMEOUT_SEC 2
+# define BASE_STR "%zd bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms"
+# define NL	"\n"
 
 typedef struct s_flags {
 	int     verbose;
 	int     count;
+	int		timestamp;
+	int		wait;
 }				t_flags;
 
 typedef struct s_stats {
