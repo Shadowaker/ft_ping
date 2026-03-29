@@ -26,6 +26,7 @@ typedef struct s_flags {
 	int     count;
 	int		timestamp;
 	int		wait;
+	int		deadline;
 }				t_flags;
 
 typedef struct s_stats {
