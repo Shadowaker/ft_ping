@@ -2,13 +2,14 @@
 
 // Help function
 void usage(const char *progname) {
-    printf("Usage: %s [-v] [-?] [-c count] <destination>\n", progname);
-    printf("Options:\n");
-    printf("  -v         Verbose output\n");
-    printf("  -c count   Stop after sending count packets\n");
-	printf("  -D         Print timestamp (unix time + microseconds as in gettimeofday) before each line.\n");
-    printf("  -?         Show this help message\n");
-    exit(EXIT_SUCCESS);
+	printf("Usage: %s [-v] [-?] [-c count] [-W timeout] <destination>\n", progname);
+	printf("Options:\n");
+	printf("  -v           Verbose output\n");
+	printf("  -c count     Stop after sending count packets\n");
+	printf("  -D           Print timestamp (unix time + microseconds as in gettimeofday) before each line.\n");
+	printf("  -W timeout   Set time to wait for a response, in seconds (default: %d).\n", TIMEOUT_SEC);
+	printf("  -?           Show this help message\n");
+	exit(EXIT_SUCCESS);
 }
 
 int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *stats) {
@@ -31,32 +32,32 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 		stats->sent++;
 		gettimeofday(&start, NULL);
 		if (sendto(*sockfd, packet, PACKET_SIZE, 0, (struct sockaddr *)&addr, sizeof(addr)) <= 0) {
-        	perror("sendto");
-        	close(*sockfd);
-        	exit(EXIT_FAILURE);
-    	}
+			perror("sendto");
+			close(*sockfd);
+			exit(EXIT_FAILURE);
+		}
 
-	    // Set timeout
-	    struct timeval tv;
-	    tv.tv_sec = TIMEOUT_SEC;
-	    tv.tv_usec = 0;
+		// Set timeout
+		struct timeval tv;
+		tv.tv_sec = flags->wait ? flags->wait : TIMEOUT_SEC;
+		tv.tv_usec = 0;
 
-	    fd_set readfds;
-	    FD_ZERO(&readfds);
-	    FD_SET(*sockfd, &readfds);
+		fd_set readfds;
+		FD_ZERO(&readfds);
+		FD_SET(*sockfd, &readfds);
 
 		unsigned int got_reply = 0; // considering moving to bool type
 		while (!got_reply) {
 			int ret = select(*sockfd + 1, &readfds, NULL, NULL, &tv);
 
-		    if (ret == -1) {
+			if (ret == -1) {
 				perror("select");
 				close(*sockfd);
 				exit(EXIT_FAILURE);
 			}
 
 			if (ret == 0) {
-				printf("Request timeout for icmp_seq %d\n", seq - 1);
+				// printf("Request timeout for icmp_seq %d\n", seq - 1); // This is a debug print
 				break;
 			}
 
@@ -74,7 +75,7 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 			int ip_hdr_len = ip_hdr->ip_hl * 4;
 			struct icmp *icmp_reply = (struct icmp *)(recvbuf + ip_hdr_len);
 
-		    if (icmp_reply->icmp_type != ICMP_ECHOREPLY
+			if (icmp_reply->icmp_type != ICMP_ECHOREPLY
 				|| icmp_reply->icmp_id != (getpid() & 0xFFFF))
 				continue;
 
@@ -104,7 +105,7 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 		}
 		sleep(1);
 
-	    // KILL IT
+		// KILL IT
 		if (flags->count > 0 && seq >= flags->count)
 			sigint_handler(0);
 	}
@@ -113,63 +114,67 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 }
 
 int main(int argc, char *argv[]) {
-    int sockfd;
-    struct sockaddr_in addr;
+	int sockfd;
+	struct sockaddr_in addr;
 	t_flags flags;
-	t_stats stats = {0, 0, -1.0, 0.0, 0.0, 0.0, NULL};
+	t_stats stats = {0, 0, -1.0, 0.0, 0.0, 0.0, NULL, {0}};
 
-    int opt;
+	int opt;
 
 	memset(&flags, 0, sizeof(flags));
-    while ((opt = getopt(argc, argv, "v?c:D")) != -1) {
-        switch (opt) {
-            case 'v':
-                flags.verbose = 1;
-                break;
-            case 'c':
-                flags.count = atoi(optarg);
-                break;
+	while ((opt = getopt(argc, argv, "v?c:DW:")) != -1) {
+		switch (opt) {
+			case 'v':
+				flags.verbose = 1;
+				break;
+			case 'c':
+				flags.count = atoi(optarg);
+				break;
 			case 'D':
 				flags.timestamp = 1;
-        		break;
-            case '?':
-                usage(argv[0]);
-                break;
-            default:
-                usage(argv[0]);
-        }
-    }
+				break;
+			case 'W':
+				flags.wait = atoi(optarg);
+				break;
+			case '?':
+				usage(argv[0]);
+				break;
+			default:
+				usage(argv[0]);
+		}
+	}
 
-    if (optind >= argc) {
-        fprintf(stderr, "Destination address required.\n");
-        usage(argv[0]);
-    }
+	if (optind >= argc) {
+		fprintf(stderr, "Destination address required.\n");
+		usage(argv[0]);
+	}
 
-    const char *dest = argv[optind];
+	const char *dest = argv[optind];
 
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    if (inet_pton(AF_INET, dest, &addr.sin_addr) <= 0) {
-        struct hostent *host = gethostbyname(dest);
-        if (!host) {
-            perror("gethostbyname");
-            exit(EXIT_FAILURE);
-        }
-         addr.sin_addr = *(struct in_addr *)host->h_addr;
-    }
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	if (inet_pton(AF_INET, dest, &addr.sin_addr) <= 0) {
+		struct hostent *host = gethostbyname(dest);
+		if (!host) {
+			perror("gethostbyname");
+			exit(EXIT_FAILURE);
+		}
+		addr.sin_addr = *(struct in_addr *)host->h_addr;
+	}
 
-    sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
-    if (sockfd < 0) {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
+	sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+	if (sockfd < 0) {
+		perror("socket");
+		exit(EXIT_FAILURE);
+	}
 
 	stats.host = dest;
 	stats_init(&stats);
 	signal(SIGINT, sigint_handler);
 	printf("PING %s (%s): 56 data bytes\n", dest, inet_ntoa(addr.sin_addr));
+	gettimeofday(&stats.start, NULL);
 	send_loop(&sockfd, addr, &flags, &stats);
 
-    close(sockfd);
-    return 0;
+	close(sockfd);
+	return 0;
 }

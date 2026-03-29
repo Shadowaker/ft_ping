@@ -29,13 +29,14 @@ typedef struct s_flags {
 }				t_flags;
 
 typedef struct s_stats {
-	int         sent;
-	int         received;
-	double      rtt_min;
-	double      rtt_max;
-	double      rtt_sum;
-	double      rtt_sum_sq;
-	const char  *host;
+	int             sent;
+	int             received;
+	double          rtt_min;
+	double          rtt_max;
+	double          rtt_sum;
+	double          rtt_sum_sq;
+	const char      *host;
+	struct timeval  start;
 }				t_stats;
 
 unsigned short  checksum(void *b, int len);
