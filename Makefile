@@ -83,7 +83,7 @@ define save_files_changed
 			if [ $${FILE%$(FILE_EXTENSION)} = $${OBJ%.o} ]; then \
 				if [ $(SRCS_PATH)/$$FILE -ot objs/$$OBJ ]; then \
 					FILE_DEP=`echo objs/$$OBJ | sed 's/\.o/\.d/'`; \
-					HEAD_FILES=`< $$FILE_DEP xargs | grep -oh "\w*.h\w*"`; \
+					HEAD_FILES=`[ -f $$FILE_DEP ] && < $$FILE_DEP xargs | grep -oh "\w*.h\w*" || true`; \
 					RECOMPILE=0; \
 					for HEAD in $$HEAD_FILES; do \
 						if [ $(SRCS_PATH)/$$HEAD -nt objs/$$OBJ ]; then \
@@ -167,7 +167,7 @@ setup:
 objs/%.o: 	$(SRCS_PATH)/%$(FILE_EXTENSION)
 			@mkdir -p $(dir $@)
 #			@$(call display_progress_bar)
-			@$(call run_and_test,$(CC) $(CFLAGS) $(DFLAGS) -c $< -o $@ -I$(INCLUDE_PATH))
+			@$(call run_and_test,$(CC) $(CFLAGS) $(DFLAGS) -MMD -MF $(@:.o=.d) -c $< -o $@ -I$(INCLUDE_PATH))
 
 clean:		header
 			@rm -rf objs objs_tests
