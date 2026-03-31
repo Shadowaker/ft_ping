@@ -2,10 +2,11 @@
 
 // Help function
 void usage(const char *progname) {
-	printf("Usage: %s [-v] [-?] [-c count] [-W timeout] [-w deadline] <destination>\n", progname);
+	printf("Usage: %s [-v] [-?] [-c count] [-s size] [-W timeout] [-w deadline] <destination>\n", progname);
 	printf("Options:\n");
 	printf("  -v             Verbose output\n");
 	printf("  -c count       Stop after sending count packets\n");
+	printf("  -s size        Set ICMP data size in bytes (default: %d).\n", DEFAULT_DATA_SIZE);
 	printf("  -D             Print timestamp (unix time + microseconds as in gettimeofday) before each line.\n");
 	printf("  -W timeout     Set time to wait for a response, in seconds (default: %d).\n", TIMEOUT_SEC);
 	printf("  -w deadline    Exit after deadline seconds regardless of packets sent.\n");
@@ -14,25 +15,31 @@ void usage(const char *progname) {
 }
 
 int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *stats) {
-	char packet[PACKET_SIZE];
+	size_t packet_size = sizeof(struct icmp) + flags->size;
+	char *packet = malloc(packet_size);
+	if (!packet) {
+		perror("malloc");
+		close(*sockfd);
+		exit(EXIT_FAILURE);
+	}
 	char recvbuf[IP_MAXPACKET];
 	int seq = 0;
 	struct timeval start, end;
 
 	while (1) {
 
-		memset(packet, 0, PACKET_SIZE);
+		memset(packet, 0, packet_size);
 		((struct icmp *)packet)->icmp_type = ICMP_ECHO;
 		((struct icmp *)packet)->icmp_code = 0;
 		((struct icmp *)packet)->icmp_id = getpid() & 0xFFFF;
 		((struct icmp *)packet)->icmp_seq = seq++;
-		for (size_t i = sizeof(struct icmp); i < PACKET_SIZE; i++)
+		for (size_t i = sizeof(struct icmp); i < packet_size; i++)
 			packet[i] = '0' + (i % 10);
-		((struct icmp *)packet)->icmp_cksum = checksum(packet, PACKET_SIZE);
+		((struct icmp *)packet)->icmp_cksum = checksum(packet, packet_size);
 
 		stats->sent++;
 		gettimeofday(&start, NULL);
-		if (sendto(*sockfd, packet, PACKET_SIZE, 0, (struct sockaddr *)&addr, sizeof(addr)) <= 0) {
+		if (sendto(*sockfd, packet, packet_size, 0, (struct sockaddr *)&addr, sizeof(addr)) <= 0) {
 			perror("sendto");
 			close(*sockfd);
 			exit(EXIT_FAILURE);
@@ -107,10 +114,13 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 		sleep(1);
 
 		// KILL IT
-		if (flags->count > 0 && seq >= flags->count)
+		if (flags->count > 0 && seq >= flags->count) {
+			free(packet);
 			sigint_handler(0);
+		}
 	}
 
+	free(packet);
 	return 0;
 }
 
@@ -123,13 +133,17 @@ int main(int argc, char *argv[]) {
 	int opt;
 
 	memset(&flags, 0, sizeof(flags));
-	while ((opt = getopt(argc, argv, "v?c:DW:w:")) != -1) {
+	flags.size = DEFAULT_DATA_SIZE;
+	while ((opt = getopt(argc, argv, "v?c:s:DW:w:")) != -1) {
 		switch (opt) {
 			case 'v':
 				flags.verbose = 1;
 				break;
 			case 'c':
 				flags.count = atoi(optarg);
+				break;
+			case 's':
+				flags.size = atoi(optarg);
 				break;
 			case 'D':
 				flags.timestamp = 1;
@@ -178,7 +192,7 @@ int main(int argc, char *argv[]) {
 	signal(SIGALRM, sigint_handler);
 	if (flags.deadline > 0)
 		alarm(flags.deadline);
-	printf("PING %s (%s): 56 data bytes\n", dest, inet_ntoa(addr.sin_addr));
+	printf("PING %s (%s): %d data bytes\n", dest, inet_ntoa(addr.sin_addr), flags.size);
 	gettimeofday(&stats.start, NULL);
 	send_loop(&sockfd, addr, &flags, &stats);
 
