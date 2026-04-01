@@ -10,6 +10,7 @@ void usage(const char *progname) {
 	printf("  -D             Print timestamp (unix time + microseconds as in gettimeofday) before each line.\n");
 	printf("  -W timeout     Set time to wait for a response, in seconds (default: %d).\n", TIMEOUT_SEC);
 	printf("  -w deadline    Exit after deadline seconds regardless of packets sent.\n");
+	printf("  -s size        Set packet size\n");
 	printf("  -?             Show this help message\n");
 	exit(EXIT_SUCCESS);
 }
