@@ -15,7 +15,7 @@ void usage(const char *progname) {
 }
 
 int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *stats) {
-	size_t packet_size = sizeof(struct icmp) + flags->size;
+	size_t packet_size = ICMP_MINLEN + flags->size;
 	char *packet = malloc(packet_size);
 	if (!packet) {
 		perror("malloc");
@@ -33,7 +33,7 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 		((struct icmp *)packet)->icmp_code = 0;
 		((struct icmp *)packet)->icmp_id = getpid() & 0xFFFF;
 		((struct icmp *)packet)->icmp_seq = seq++;
-		for (size_t i = sizeof(struct icmp); i < packet_size; i++)
+		for (size_t i = ICMP_MINLEN; i < packet_size; i++)
 			packet[i] = '0' + (i % 10);
 		((struct icmp *)packet)->icmp_cksum = checksum(packet, packet_size);
 
