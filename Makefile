@@ -179,4 +179,11 @@ fclean:		header clean
 
 re:			fclean all
 
+setcap:
+			@if [ "$$(id -u)" -ne 0 ]; then \
+				echo "Setcap requires sudo"; \
+				exit 1; \
+			fi
+			setcap cap_net_raw+ep ./$(NAME)
+
 .PHONY:		all clean fclean re header
