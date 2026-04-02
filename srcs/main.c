@@ -10,7 +10,6 @@ void usage(const char *progname) {
 	printf("  -D             Print timestamp (unix time + microseconds as in gettimeofday) before each line.\n");
 	printf("  -W timeout     Set time to wait for a response, in seconds (default: %d).\n", TIMEOUT_SEC);
 	printf("  -w deadline    Exit after deadline seconds regardless of packets sent.\n");
-	printf("  -s size        Set packet size\n");
 	printf("  -?             Show this help message\n");
 	exit(EXIT_SUCCESS);
 }
@@ -66,12 +65,12 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 			}
 
 			if (ret == 0) {
-				// printf("Request timeout for icmp_seq %d\n", seq - 1); // This is a debug print
 				break;
 			}
 
-			socklen_t addrlen = sizeof(addr);
-			ssize_t recv_bytes = recvfrom(*sockfd, recvbuf, sizeof(recvbuf), 0, (struct sockaddr *)&addr, &addrlen);
+			struct sockaddr_in from;
+			socklen_t addrlen = sizeof(from);
+			ssize_t recv_bytes = recvfrom(*sockfd, recvbuf, sizeof(recvbuf), 0, (struct sockaddr *)&from, &addrlen);
 			gettimeofday(&end, NULL);
 
 			if (recv_bytes <= 0) {
@@ -85,7 +84,8 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 			struct icmp *icmp_reply = (struct icmp *)(recvbuf + ip_hdr_len);
 
 			if (icmp_reply->icmp_type != ICMP_ECHOREPLY
-				|| icmp_reply->icmp_id != (getpid() & 0xFFFF))
+				|| icmp_reply->icmp_id != (getpid() & 0xFFFF)
+				|| from.sin_addr.s_addr != addr.sin_addr.s_addr)
 				continue;
 
 			got_reply = 1;
@@ -104,12 +104,12 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 				printf("[%ld.%06ld] ", end.tv_sec, (long)end.tv_usec);
 			if (flags->verbose)
 				printf("%zd bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms (type=%d code=%d)\n",
-					icmp_bytes, inet_ntoa(addr.sin_addr),
+					icmp_bytes, inet_ntoa(from.sin_addr),
 					icmp_reply->icmp_seq, ip_hdr->ip_ttl, rtt,
 					icmp_reply->icmp_type, icmp_reply->icmp_code);
 			else
 				printf("%zd bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n",
-					icmp_bytes, inet_ntoa(addr.sin_addr),
+					icmp_bytes, inet_ntoa(from.sin_addr),
 					icmp_reply->icmp_seq, ip_hdr->ip_ttl, rtt);
 		}
 		sleep(1);
@@ -156,8 +156,10 @@ int main(int argc, char *argv[]) {
 				flags.deadline = atoi(optarg);
 				break;
 			case '?':
-				usage(argv[0]);
-				break;
+				if (optopt == 0 || optopt == '?')
+					usage(argv[0]);
+				fprintf(stderr, "%s: invalid option -- '%c'\n", argv[0], optopt);
+				exit(EXIT_FAILURE);
 			default:
 				usage(argv[0]);
 		}
