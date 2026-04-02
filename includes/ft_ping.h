@@ -28,6 +28,7 @@ typedef struct s_flags {
 	int		wait;
 	int		deadline;
 	int		size;
+	int		interval;
 }				t_flags;
 
 typedef struct s_stats {

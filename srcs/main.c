@@ -10,6 +10,7 @@ void usage(const char *progname) {
 	printf("  -D             Print timestamp (unix time + microseconds as in gettimeofday) before each line.\n");
 	printf("  -W timeout     Set time to wait for a response, in seconds (default: %d).\n", TIMEOUT_SEC);
 	printf("  -w deadline    Exit after deadline seconds regardless of packets sent.\n");
+	printf("  -i interval    Wait interval seconds between sending each packet (default: 1).\n");
 	printf("  -?             Show this help message\n");
 	exit(EXIT_SUCCESS);
 }
@@ -118,7 +119,7 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 					icmp_bytes, host_str, ip_str,
 					icmp_reply->icmp_seq, ip_hdr->ip_ttl, rtt);
 		}
-		sleep(1);
+		sleep(flags->interval ? flags->interval : 1);
 
 		// KILL IT
 		if (flags->count > 0 && seq > flags->count) {
@@ -141,7 +142,7 @@ int main(int argc, char *argv[]) {
 
 	memset(&flags, 0, sizeof(flags));
 	flags.size = DEFAULT_DATA_SIZE;
-	while ((opt = getopt(argc, argv, "v?c:s:DW:w:")) != -1) {
+	while ((opt = getopt(argc, argv, "v?c:s:DW:w:i:")) != -1) {
 		switch (opt) {
 			case 'v':
 				flags.verbose = 1;
@@ -160,6 +161,9 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'w':
 				flags.deadline = atoi(optarg);
+				break;
+			case 'i':
+				flags.interval = atoi(optarg);
 				break;
 			case '?':
 				if (optopt == 0 || optopt == '?')
