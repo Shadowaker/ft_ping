@@ -23,7 +23,7 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 		exit(EXIT_FAILURE);
 	}
 	char recvbuf[IP_MAXPACKET];
-	int seq = 0;
+	int seq = 1;
 	struct timeval start, end;
 
 	while (1) {
@@ -100,22 +100,28 @@ int send_loop(int *sockfd, struct sockaddr_in addr, t_flags *flags, t_stats *sta
 			stats->rtt_sum_sq += rtt * rtt;
 			ssize_t icmp_bytes = recv_bytes - ip_hdr_len;
 
+			char host_str[NI_MAXHOST];
+			char ip_str[INET_ADDRSTRLEN];
+			inet_ntop(AF_INET, &from.sin_addr, ip_str, sizeof(ip_str));
+			if (getnameinfo((struct sockaddr *)&from, sizeof(from), host_str, sizeof(host_str), NULL, 0, 0) != 0)
+				snprintf(host_str, sizeof(host_str), "%s", ip_str);
+
 			if (flags->timestamp)
 				printf("[%ld.%06ld] ", end.tv_sec, (long)end.tv_usec);
 			if (flags->verbose)
-				printf("%zd bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms (type=%d code=%d)\n",
-					icmp_bytes, inet_ntoa(from.sin_addr),
+				printf("%zd bytes from %s (%s): icmp_seq=%d ttl=%d time=%.3f ms (type=%d code=%d)\n",
+					icmp_bytes, host_str, ip_str,
 					icmp_reply->icmp_seq, ip_hdr->ip_ttl, rtt,
 					icmp_reply->icmp_type, icmp_reply->icmp_code);
 			else
-				printf("%zd bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n",
-					icmp_bytes, inet_ntoa(from.sin_addr),
+				printf("%zd bytes from %s (%s): icmp_seq=%d ttl=%d time=%.3f ms\n",
+					icmp_bytes, host_str, ip_str,
 					icmp_reply->icmp_seq, ip_hdr->ip_ttl, rtt);
 		}
 		sleep(1);
 
 		// KILL IT
-		if (flags->count > 0 && seq >= flags->count) {
+		if (flags->count > 0 && seq > flags->count) {
 			free(packet);
 			sigint_handler(0);
 		}
